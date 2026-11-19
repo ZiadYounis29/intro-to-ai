@@ -4,7 +4,6 @@ import math
 board = [[0]*7 for i in range(6)]
 index = [0,0,0,0,0,0,0]
 
-#def hueristic
 
 def applyMove(board,index ,row ,col, turn):
     index = index.copy()
@@ -81,11 +80,16 @@ def scanWindow(board,direction1,direction2, row ,col): #00 = horizontal /01 = ve
     empty = 0
     owner = 0                      #0 = not assingned yet
     consicutive = False
+    consicutiveEmpty = False
     prevElement = None
     for i in range(4):
         element = board[row + r*i][col + c*i]
         if element == prevElement and element != 0:
             consicutive = True
+            
+        if element == prevElement and element == 0:
+            consicutiveEmpty = True
+        
         
         if element == 0:
             empty +=1
@@ -98,5 +102,17 @@ def scanWindow(board,direction1,direction2, row ,col): #00 = horizontal /01 = ve
         
         prevElement = element
     score = 4-empty
-    return consicutive ,score, owner
+    if consicutive or not consicutiveEmpty:
+        score +=1
+        
+    return score, owner #how scores are calculated  0: all empty , 1: 1 element , 2: two elements(cannot be connected) ex: x--x
+                        # 3 two elements can be connected to be 3 ex: xx-- or x-x- , 4: 3 elements . 5: 4 elements
+                        
+                        
+#what next: 
+#create a simple loop that raverse all squares(with all direction) to calculate each ammount of each score for good detailed calculations
+#make a hueristic function using the the ammounts gathered 
+#store expanded nodes for viewing
+#game loop
+#gui
             

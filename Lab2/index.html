@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connect 4</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; text-align: center; background: #262b36; color: #d8dce4; }
+  h2, h3 { font-weight: 600; color: #eceff4; }
+  input, button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid #4a5163;
+                  background: #323847; color: #eceff4; }
+  input { padding: 6px; }
+  button { cursor: pointer; }
+  button:hover { background: #3d4557; }
+
+  #board { display: grid; grid-template-columns: repeat(7, 58px); gap: 8px;
+           background: linear-gradient(#3f68b0, #2f5290); padding: 14px; width: fit-content;
+           margin: 8px auto; border-radius: 16px; box-shadow: 0 6px 18px rgba(0,0,0,.45); }
+  .cell { width: 58px; height: 58px; border-radius: 50%; background: #1b1f28; cursor: pointer;
+          box-shadow: inset 0 3px 7px rgba(0,0,0,.7); }
+  .cell:hover { background: #232835; }
+  .h { background: radial-gradient(circle at 35% 30%, #ffe27a, #e2ab1c 70%); box-shadow: inset 0 -3px 5px rgba(0,0,0,.3); }
+  .c { background: radial-gradient(circle at 35% 30%, #ff8a80, #c9362f 70%); box-shadow: inset 0 -3px 5px rgba(0,0,0,.3); }
+  .h:hover { background: radial-gradient(circle at 35% 30%, #ffe27a, #e2ab1c 70%); }
+  .c:hover { background: radial-gradient(circle at 35% 30%, #ff8a80, #c9362f 70%); }
+  .last { outline: 3px solid #eceff4; outline-offset: -3px; }
+
+  #numbers { display: grid; grid-template-columns: repeat(7, 58px); gap: 8px; width: fit-content;
+             margin: 0 auto; padding: 0 14px; color: #8f98ad; font-size: 13px; }
+  #status { min-height: 1.4em; margin: 8px; }
+
+  #tree { margin: 16px auto; padding: 14px 10px; width: min(96vw, 900px); background: #1f232c;
+          border: 1px solid #3a4050; border-radius: 8px; max-height: 520px; overflow: auto; text-align: center; }
+  .tree { width: max-content; min-width: 100%; }
+  .tree ul { display: flex; justify-content: center; position: relative; margin: 0; padding: 20px 0 0 0; }
+  .tree > ul { padding-top: 0; }
+  .tree li { list-style: none; position: relative; padding: 20px 5px 0 5px; }
+  .tree > ul > li { padding-top: 0; }
+  .tree li::before, .tree li::after { content: ''; position: absolute; top: 0; right: 50%;
+          width: 50%; height: 20px; border-top: 2px solid #5b6479; }
+  .tree li::after { right: auto; left: 50%; border-left: 2px solid #5b6479; }
+  .tree > ul > li::before, .tree > ul > li::after { display: none; }
+  .tree li:only-child::before, .tree li:only-child::after { display: none; }
+  .tree li:only-child { padding-top: 20px; }
+  .tree li:first-child::before, .tree li:last-child::after { border: 0 none; }
+  .tree li:last-child::before { border-right: 2px solid #5b6479; border-radius: 0 6px 0 0; }
+  .tree li:first-child::after { border-radius: 6px 0 0 0; }
+  .tree ul ul::before { content: ''; position: absolute; top: 0; left: 50%; height: 20px;
+          border-left: 2px solid #5b6479; }
+
+  .node { position: relative; display: inline-block; min-width: 86px; padding: 5px 8px; border-radius: 8px;
+          background: #2d3343; border: 2px solid #5b6479; font: 11px/1.35 monospace; white-space: pre; text-align: center; }
+  .node.max { border-color: #d6403a; }
+  .node.min { border-color: #e2ab1c; }
+  .node.leaf { border-color: #4f9d7a; background: #25382f; }
+  .node.pruned { border-style: dashed; border-color: #ff8a80; color: #ff8a80; background: transparent; }
+  .node.chosen { box-shadow: 0 0 0 3px #eceff4; }
+  .node.has { cursor: pointer; }
+  .node.has:hover { background: #3a4156; }
+  .node.has::after { content: '+'; position: absolute; right: 4px; top: 1px; color: #8f98ad; }
+  .node.has.open::after { content: '\2212'; }
+</style>
+</head>
+<body>
+  <h2>Connect 4</h2>
+  <div>
+    K <input id="k" type="number" min="1" max="8" value="4" style="width:50px">
+    <button id="new">New game</button>
+    <button id="cfirst">Computer first</button>
+  </div>
+  <p>You (yellow): <b id="sh">0</b> &nbsp; Computer (red): <b id="sc">0</b></p>
+
+  <div id="numbers"></div>
+  <div id="board"></div>
+  <div id="status"></div>
+
+  <h3>Minimax tree</h3>
+  <div id="tree">No tree yet.</div>
+
+<script>
+  const ROWS = 6, COLS = 7, COMPUTER = 1, HUMAN = -1;
+  let board, index, busy, last;
+
+  // column numbers above the board (0-6, same as the console tree)
+  for (let c = 0; c < COLS; c++) {
+    const d = document.createElement('div'); d.textContent = c;
+    document.getElementById('numbers').appendChild(d);
+  }
+
+  function newGame(computerFirst) {
+    board = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+    index = Array(COLS).fill(0);
+    busy = false; last = null;
+    document.getElementById('status').textContent = '';
+    document.getElementById('tree').textContent = 'No tree yet.';
+    render();
+    if (computerFirst) computerMove();
+  }
+
+  // board[0] is the bottom row, so draw from row 5 down to row 0
+  function render() {
+    const el = document.getElementById('board');
+    el.innerHTML = '';
+    for (let r = ROWS - 1; r >= 0; r--)
+      for (let c = 0; c < COLS; c++) {
+        const d = document.createElement('div');
+        d.className = 'cell' + (board[r][c] === HUMAN ? ' h' : board[r][c] === COMPUTER ? ' c' : '');
+        if (last && last[0] === r && last[1] === c) d.className += ' last';
+        d.onclick = () => humanMove(c);
+        el.appendChild(d);
+      }
+    const s = countFours();
+    document.getElementById('sh').textContent = s.human;
+    document.getElementById('sc').textContent = s.computer;
+  }
+
+  // every 4-cell window of one color is one four (a 5-streak counts 2)
+  function countFours() {
+    let human = 0, computer = 0;
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++)
+        for (const [dr, dc] of [[0,1],[1,0],[1,1],[1,-1]]) {
+          const er = r + 3*dr, ec = c + 3*dc;
+          if (er >= ROWS || ec < 0 || ec >= COLS || board[r][c] === 0) continue;
+          let same = true;
+          for (let i = 1; i < 4; i++) if (board[r+i*dr][c+i*dc] !== board[r][c]) same = false;
+          if (same) board[r][c] === HUMAN ? human++ : computer++;
+        }
+    return {human, computer};
+  }
+
+  function drop(col, player) {
+    const row = index[col];
+    board[row][col] = player;
+    index[col]++;
+    last = [row, col];
+  }
+
+  const isFull = () => index.every(v => v >= ROWS);
+
+  function finish() {
+    const s = countFours();
+    const who = s.human > s.computer ? 'You win' : s.human < s.computer ? 'Computer wins' : 'Draw';
+    document.getElementById('status').textContent = 'Board full. ' + who + ' (' + s.human + ' : ' + s.computer + ')';
+  }
+
+  function humanMove(col) {
+    if (busy || isFull() || index[col] >= ROWS) return;
+    drop(col, HUMAN);
+    render();
+    if (isFull()) return finish();
+    computerMove();
+  }
+
+  async function computerMove() {
+    busy = true;
+    const status = document.getElementById('status');
+    status.textContent = 'Computer is thinking...';
+    try {
+      const res = await fetch('/move', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({board, index, depth: +document.getElementById('k').value})
+      });
+      if (!res.ok) throw new Error('server error ' + res.status);
+      const data = await res.json();
+      showTree(data.nodes, data.K, data.col);
+      drop(data.col, COMPUTER);
+      render();
+      if (isFull()) finish();
+      else status.textContent = 'Computer played column ' + data.col + ' (value ' + data.value + '). Your move.';
+    } catch (e) {
+      status.textContent = 'Could not reach the Python server. Run server.py and open http://127.0.0.1:5000';
+    }
+    busy = false;
+  }
+
+  // ---------- tree viewer ----------
+  // nodes arrive in post-order: [level, col, value, alpha, beta, pruned]
+  function showTree(flat, K, chosen) {
+    // rebuild the tree: read the list backwards, so each parent comes before its children
+    const stack = [];
+    let root = null;
+    for (let i = flat.length - 1; i >= 0; i--) {
+      const [level, col, value, alpha, beta, pruned] = flat[i];
+      const n = {level, col, value, alpha, beta, pruned, kids: []};
+      while (stack.length && stack[stack.length - 1].level >= level) stack.pop();
+      if (stack.length) stack[stack.length - 1].kids.push(n); else root = n;
+      stack.push(n);
+    }
+    // the backwards read lists siblings in reverse, so flip them to search order
+    (function fix(n) { n.kids.reverse(); n.kids.forEach(fix); })(root);
+
+    const box = document.getElementById('tree');
+    box.innerHTML = '';
+    const info = document.createElement('div');
+    info.textContent = flat.length + ' nodes expanded. Click a node to show its children.';
+    info.style.cssText = 'margin-bottom:10px;font-size:13px;color:#8f98ad';
+    box.appendChild(info);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'tree';
+    const ul = document.createElement('ul');
+    ul.appendChild(makeLi(root, K, chosen));
+    wrap.appendChild(ul);
+    box.appendChild(wrap);
+    wrap.querySelector('.node').click();      // open the root
+  }
+
+  const fmt = v => v === 'inf' ? '\u221e' : v === '-inf' ? '-\u221e' : v;
+
+  function nodeText(n, K) {
+    if (n.level === 0) return 'ROOT  MAX\nvalue ' + fmt(n.value) + '\n\u03b1 ' + fmt(n.alpha) + '  \u03b2 ' + fmt(n.beta);
+    if (n.level === K) return 'col ' + n.col + '  LEAF\nheuristic ' + fmt(n.value);
+    const type = n.level % 2 === 0 ? 'MAX' : 'MIN';
+    return 'col ' + n.col + '  ' + type + '\nvalue ' + fmt(n.value) + '\n\u03b1 ' + fmt(n.alpha) + '  \u03b2 ' + fmt(n.beta);
+  }
+
+  // children are only created the first time a node is opened, so big trees stay fast
+  function makeLi(n, K, chosen) {
+    const li = document.createElement('li');
+    const box = document.createElement('div');
+    const kind = n.level === K ? 'leaf' : n.level % 2 === 0 ? 'max' : 'min';
+    box.className = 'node ' + kind;
+    if (n.level === 1 && n.col === chosen) box.className += ' chosen';
+    box.textContent = nodeText(n, K);
+    li.appendChild(box);
+
+    if (n.kids.length) {
+      box.className += ' has';
+      let ul = null;
+      box.onclick = () => {
+        if (!ul) {
+          ul = document.createElement('ul');
+          n.kids.forEach(k => ul.appendChild(makeLi(k, K, chosen)));
+          if (n.pruned) {
+            const p = document.createElement('li');
+            const pb = document.createElement('div');
+            pb.className = 'node pruned';
+            pb.textContent = 'PRUNED\nx ' + n.pruned;
+            p.appendChild(pb);
+            ul.appendChild(p);
+          }
+          li.appendChild(ul);
+          box.classList.add('open');
+        } else {
+          const hide = ul.style.display !== 'none';
+          ul.style.display = hide ? 'none' : '';
+          box.classList.toggle('open', !hide);
+        }
+      };
+    }
+    return li;
+  }
+
+  document.getElementById('new').onclick = () => newGame(false);
+  document.getElementById('cfirst').onclick = () => newGame(true);
+  newGame(false);
+</script>
+</body>
+</html>

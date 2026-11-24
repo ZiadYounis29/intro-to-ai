@@ -22,7 +22,7 @@ def print_tree():
         if level == 0:
             lines.append(f"ROOT value={value} alpha={alpha} beta={beta}")
         elif level == K:
-            lines.append(f"{pad}col {col}  LEAF heuristic={value}")
+            lines.append(f"{pad}col {col}  LEAF heuristizc={value}")
         else:
             lines.append(f"{pad}col {col}  value={value} alpha={alpha} beta={beta}")
         if pruned:

@@ -27,7 +27,7 @@ def applyMove(board,index ,row ,col, turn):
 def minMax(board, index ,alpha, beta, depth,turn,column):
     
     if depth == 0 or index == [6,6,6,6,6,6,6]:
-        value = heuristic(board)
+        value = heuristic(board,turn)
         Nodes.append(( MAXDEPTH - depth, column, value , alpha, beta, 0 ))
         return value, None
     
@@ -137,15 +137,21 @@ def getBoardCounts(board):
                         human[level] += 1
     return com ,human
 
-def heuristic(board):
+def heuristic(board,turn):
     com , human = getBoardCounts(board)
-    score = [ a - b for a,b in zip(com ,human)]
+    if turn:
+        comMult = 1.15
+        humanMult = 0.85
+    else:
+        comMult = 0.85
+        humanMult = 1.15
+    score =0 
     for i in range(6):
         if i == 5:
-            score[i] = score[i]*FOUR_WEIGHT
+            score += (com[i]-human[i])*FOUR_WEIGHT
         else:
-            score[i] = score[i]* BASE**i
-    return sum(score)
+            score += (comMult*com[i]-humanMult*human[i])* BASE**i
+    return round(score, 2)
 
 def foursCount(board):
     com , human = getBoardCounts(board)
